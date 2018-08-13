@@ -22,7 +22,7 @@ from gl_sigrep import Gl_sigrep
 from primal_dual_gl import Primal_dual_gl 
 from utils import vector_form, sum_squareform
 
-node_num=50
+node_num=10
 signal_num=100
 rbf_adj, rbf_lap=rbf_graph(node_num)
 X_t=generate_signal(signal_num, node_num, rbf_lap)
@@ -30,20 +30,17 @@ X=X_t.T
 
 Z=rbf_kernel(X)
 
-iteration=100
-alpha=0.012
-beta=0.08
+iteration=1000
+alpha=0.5
+beta=0.1
 w_0=np.zeros(int((node_num-1)*node_num/2))
-d_0=np.zeros(node_num)
-#d=Sw
-epsilon=10**(-6)
-gamma=1+2*beta+np.sqrt(2*node_num-1)-5
-gamma=
+c=0
 
-primal_gl=Primal_dual_gl(node_num, Z, alpha, beta, w_0, d_0, gamma, epsilon, iteration)
+primal_gl=Primal_dual_gl(node_num, Z, alpha, beta, iteration, c=c)
 
 vector_adj, primal_adj=primal_gl.run()
 
+#primal_adj[np.where(primal_adj<0.75)]=0.0
 
 
 
@@ -52,8 +49,10 @@ vector_adj, primal_adj=primal_gl.run()
 # lap_error=np.linalg.norm(rbf_lap-lap, 'fro')/signal_num
 
 fig, (ax1, ax2)=plt.subplots(1,2, figsize=(8,4))
-ax1.imshow(rbf_adj)
-ax1.set_title('Ground Truth Laplacian')
-ax2.imshow(primal_adj)
-ax2.set_title('Learned Laplacian')
+c1=ax1.pcolor(rbf_adj,cmap='RdBu', vmin=0, vmax=1)
+ax1.set_title('Ground Truth W')
+c2=ax2.pcolor(primal_adj,cmap='RdBu', vmin=0, vmax=1)
+ax2.set_title('Learned W')
+fig.colorbar(c1, ax=ax1)
+fig.colorbar(c2, ax=ax2)
 plt.show()

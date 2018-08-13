@@ -50,3 +50,15 @@ def vector_form(W,n):
 	w=W[np.triu_indices(n,1)]
 	# the triangle-upper 
 	return w
+
+
+def lin_map(x, lims_out, lims_in):
+	a=lims_in[0]
+	b=lims_in[1]
+	c=lims_out[0]
+	d=lims_out[1]
+	y=np.zeros(len([x]))
+	y=((x-a)*(d-c)/(b-a))+c
+	return y
+
+a=lin_map(0,[0.2,0.5], [0,1])

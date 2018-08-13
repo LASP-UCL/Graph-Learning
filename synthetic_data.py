@@ -21,19 +21,23 @@ import seaborn as sns
 def rbf_graph(node_num, dimension=2, threshold=0.75):
 	positions=np.random.uniform(low=-0.5, high=0.5, size=(node_num, dimension))
 	adj_matrix=rbf_kernel(positions, gamma=(1)/(2*(0.5)**2))
-	adj_matrix[np.where(adj_matrix<threshold)]=0.0
+	#adj_matrix[np.where(adj_matrix<threshold)]=0.0
+	np.fill_diagonal(adj_matrix,0)
 	laplacian=csgraph.laplacian(adj_matrix, normed=False)
 	return adj_matrix, laplacian
 
 def er_graph(node_num, prob=0.2, seed=2018):
 	graph=nx.erdos_renyi_graph(node_num, prob, seed=seed)
 	adj_matrix=nx.to_numpy_array(graph)
+	np.fill_diagonal(adj_matrix,0)
 	laplacian=nx.laplacian_matrix(graph).toarray()
 	return adj_matrix, laplacian
 
 def ba_graph(node_num, seed=2018):
 	graph=nx.barabasi_albert_graph(node_num, m=1, seed=seed)
 	adj_matrix=nx.to_numpy_array(graph)
+	np.fill_diagonal(adj_matrix,0)
+
 	laplacian=nx.laplacian_matrix(graph).toarray()
 	return adj_matrix, laplacian	
 
@@ -49,7 +53,7 @@ def normalized_trace(matrix, target_trace):
 
 def generate_signal(signal_num, node_num, laplacian):
 	mean=np.zeros(node_num)
-	sigma_error=0.5
+	sigma_error=0.2
 	pinv_lap=np.linalg.pinv(laplacian)
 	cov=pinv_lap+sigma_error*np.identity(node_num)
 	signals=np.random.multivariate_normal(mean, cov, size=signal_num)
