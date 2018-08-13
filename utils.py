@@ -61,4 +61,3 @@ def lin_map(x, lims_out, lims_in):
 	y=((x-a)*(d-c)/(b-a))+c
 	return y
 
-a=lin_map(0,[0.2,0.5], [0,1])
