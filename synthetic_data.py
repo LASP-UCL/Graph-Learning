@@ -21,7 +21,7 @@ import seaborn as sns
 def rbf_graph(node_num, dimension=2, threshold=0.75):
 	positions=np.random.uniform(low=-0.5, high=0.5, size=(node_num, dimension))
 	adj_matrix=rbf_kernel(positions, gamma=(1)/(2*(0.5)**2))
-	#adj_matrix[np.where(adj_matrix<threshold)]=0.0
+	adj_matrix[np.where(adj_matrix<threshold)]=0.0
 	np.fill_diagonal(adj_matrix,0)
 	laplacian=csgraph.laplacian(adj_matrix, normed=False)
 	return adj_matrix, laplacian
