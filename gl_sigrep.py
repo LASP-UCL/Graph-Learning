@@ -18,71 +18,73 @@ from scipy.sparse import csgraph
 import seaborn as sns
 from synthetic_data import *
 from scipy.optimize import minimize
+from utils import sum_squareform, vector_form, lin_map,filter_graph_to_knn
+
+
 
 class Gl_sigrep():
-	def __init__(self, node_num, input_, iteration, alpha_, beta_):
+	def __init__(self, node_num, Z, alpha=0.1, beta=0.1, step_size=0.5):
 		self.node_num=node_num
-		self.input=input_
-		self.iteration=iteration
-		self.alpha_=alpha_
-		self.beta_=beta_
-		self.output=input_
-		self.laplacian=np.random.normal(size=(self.node_num, self.node_num))
-
-	def update_laplacian_objective(self, x):
-		x=x.reshape((self.node_num, self.node_num))
-		a=np.dot(self.output, x)
-		b=np.dot(a, self.output.T)
-		c=np.trace(b)
-		d=self.alpha_*c 
-		e=np.linalg.norm(x, 'fro')**2
-		f=self.beta_*e
-		h=d+f
-		return h
-
-	def cons_1(self, x):
-		x=x.reshape((self.node_num, self.node_num))
-
-		return np.trace(x)-self.node_num
-
-	def cons_2(self, x):
-		x=x.reshape((self.node_num, self.node_num))
-		return np.dot(x, np.ones((self.node_num)))-np.zeros((self.node_num))
-
-	def cons_3(self, x):
-		x=x.reshape((self.node_num, self.node_num))
-		x_t=x.T
-		return np.sum(x-x_t)
-
-	def update_output_objective(self, x):
-		x=x.reshape((len(self.input),self.node_num))
-		a=np.dot(x, self.laplacian)
-		b=np.dot(a, x.T)
-		c=np.trace(b)
-		d=self.alpha_*c
-		e=self.input-x
-		f=np.linalg.norm(e, 'fro')
-		g=f**2
-		h=g+d
-		return h 
-
-
-
+		self.ncols=int(node_num*(node_num-1)/2)
+		self.Z=Z
+		self.z=vector_form(Z, node_num)
+		self.alpha=alpha
+		self.beta=beta
+		self.W=np.zeros((node_num,node_num))
+		self.w=np.zeros(self.ncols)
+		self.S=sum_squareform(node_num)
+		self.K=2*np.ones(self.ncols)
+		self.v=2*np.sum(self.w)
+		self.eplison=10**(-5)
+		self.step_size=step_size
+		self.max_iteration=5000
+		self.y=None
+		self.y_bar=None
+		self.p=None
+		self.p_bar=None
+		self.q=None
+		self.q_bar=None
+		self.max_w=1
+		self.mu=2*self.alpha*self.node_num+2*np.sqrt(self.ncols)
+		self.ep=lin_map(0.0, [0,1/(1+self.mu)], [0,1])
+		self.gamma=lin_map(self.step_size, [self.ep, (1-self.ep)/self.mu], [0,1])
 
 	def run(self):
-		for i in range(self.iteration):
-			print('iteration ~~~~~~~~~ ', i)
-			cons=({'type': 'eq', 'fun': self.cons_1},
-				{'type': 'eq', 'fun': self.cons_2},
-				{'type': 'eq', 'fun': self.cons_3}
-				)
+		error_list=[]
+		for i in range(self.max_iteration):
+			#print('iteration', i)
 
-			res1=minimize(self.update_laplacian_objective, self.laplacian, constraints=cons, options={'gtol':1e-4, 'disp': True} )
+			self.y=self.w-self.gamma*(self.alpha*(2*self.w+np.dot(self.S.T, np.dot(self.S, self.w)))+2*self.v)
+			self.y_bar=self.v+self.gamma*(2*np.sum(self.w))
+			self.p=np.fmin(self.max_w, np.fmax(0, self.y-2*self.gamma*self.z))
 
-			self.laplacian=res1.x.reshape((self.node_num, self.node_num))
+			self.p_bar=self.y_bar-self.gamma*self.node_num
+			self.q=self.p-self.gamma*(self.alpha*(2*self.p+np.dot(self.S.T, np.dot(self.S, self.p)))+2*self.p_bar)
+			self.q_bar=self.p_bar+self.gamma*(2*np.sum(self.p))
 
-			res2=minimize(fun=self.update_output_objective, x0=self.output)
+			w_i_1=self.w.copy()
+			self.w=self.w-self.y+self.q
+#			print('self.w', self.w)
 
-			self.output=res2.x.reshape((len(self.input), self.node_num))
+			v_i_1=self.v.copy()
+			self.v=self.v-self.y_bar+self.q_bar
 
-		return self.laplacian, self.output
+			w_diff=np.linalg.norm(self.w-w_i_1)
+			w_ratio=w_diff/np.linalg.norm(w_i_1)
+			v_diff=np.linalg.norm(self.v-v_i_1)
+			v_ratio=v_diff/np.linalg.norm(v_i_1)
+			if (w_ratio<self.eplison) and (v_ratio<self.eplison):
+				break 
+			else:
+				pass 
+			index=np.triu_indices(self.node_num,1)
+			self.W[index]=self.w
+			for i in range(self.node_num):
+				for j in range(self.node_num):
+					self.W[j,i]=self.W[i,j]
+
+#			print('w_ratio', w_ratio)
+#			print('v_ratio', v_ratio)
+			error=np.linalg.norm(self.W-self.Z)
+			error_list.extend([error])
+		return self.W, error_list
