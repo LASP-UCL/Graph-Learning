@@ -1,24 +1,18 @@
 import numpy as np
 import random
 from random import choice
-import datetime
-from matplotlib.pylab import *
-import argparse
-import matplotlib.pyplot as plt
-from sklearn.decomposition import TruncatedSVD
 import networkx as nx 
 import os 
 os.chdir('C:/Kaige_Research/Graph Learning/graph_learning_code/')
-from community import community_louvain
 import pandas as pd 
-import csv
 from sklearn.metrics.pairwise import cosine_similarity, rbf_kernel
 from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler
-from collections import Counter
 from scipy.sparse import csgraph
-#import seaborn as sns
 from sklearn.datasets import make_blobs
 from utils import *
+from knn_models import *
+from sklearn.preprocessing import normalize
+
 
 def RGG(node_num, dimension=2):
 	RS=np.random.RandomState(seed=100)
@@ -66,10 +60,11 @@ def ba_graph(node_num, seed=2018):
 	return adj_matrix, laplacian	
 
 
-def generate_signal_gl_siprep(signal_num, node_num, laplacian):
+def generate_signal_gl_siprep(signal_num, node_num, laplacian, error_sigma):
 	mean=np.zeros(node_num)
-	pinv_lap=np.linalg.pinv(laplacian)
-	cov=pinv_lap
+	normed_lap=normalized_trace(laplacian, node_num)
+	pinv_lap=np.linalg.pinv(normed_lap)
+	cov=pinv_lap+error_sigma*np.identity(node_num)
 	signals=np.random.multivariate_normal(mean, cov, size=signal_num)
 	return signals
 
@@ -175,7 +170,7 @@ def normalized_trace(matrix, target_trace):
 	return normed_matrix
 
 def learn_knn_graph(signals, node_num, k=5):
-	print('Learning KNN Graph')
+	#print('Learning KNN Graph')
 	adj=rbf_kernel(signals.T)
 	np.fill_diagonal(adj,0)
 	knn_adj=filter_graph_to_knn(adj, node_num, k=k)
@@ -183,7 +178,7 @@ def learn_knn_graph(signals, node_num, k=5):
 	return knn_adj, knn_lap
 
 def learn_knn_signal(adj, signals, signal_num, node_num):
-	print('Learning KNN Signals')
+	#print('Learning KNN Signals')
 	new_signals=np.zeros((signal_num, node_num))
 	for i in range(signal_num):
 		for j in range(node_num):
@@ -201,6 +196,35 @@ def signal_noise(signal_num, node_num, scale):
 	noise=RS.normal(scale=scale, size=(signal_num, node_num))
 	return noise
 
+
+def blob_data(node_num, signal_num, dimension, cluster_num, cluster_std, noise_scale):
+	x, y=make_blobs(n_samples=node_num, n_features=dimension, centers=cluster_num, cluster_std=cluster_std, center_box=(0,1.0), shuffle=False)
+	x=MinMaxScaler().fit_transform(x)
+	item_f, item_y=make_blobs(n_samples=signal_num, n_features=dimension, centers=cluster_num, cluster_std=cluster_std, center_box=(0,1.0), shuffle=False)
+	item_f=MinMaxScaler().fit_transform(item_f)
+	signal=np.dot(item_f, x.T)
+	noise=np.random.normal(size=(signal_num, node_num), scale=noise_scale)
+	noisy_signal=signal+noise
+	return noisy_signal, signal, item_f, x, y
+
+
+def generate_all_random_users(iterations, user_num):
+	random_users=np.random.choice(np.arange(user_num), size=iterations, replace=True)
+	return random_users
+
+
+def generate_all_article_pool(iterations, pool_size, article_num):
+
+	all_article_pool=[]
+	for i in range(iterations):
+		pool=np.random.choice(np.arange(article_num), size=pool_size, replace=True)
+		all_article_pool.append(pool)
+	all_article_pool=np.array(all_article_pool)
+
+	return all_article_pool
+
+
+	
 # adj, f=RGG(10)
 # laplacian=csgraph.laplacian(adj, normed=False)
 # laplacian=laplacian/np.linalg.norm(laplacian)

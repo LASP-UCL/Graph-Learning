@@ -17,6 +17,11 @@ from scipy.sparse import csgraph
 #import seaborn as sns
 from scipy.optimize import minimize
 from sklearn.preprocessing import MinMaxScaler
+from community import community_louvain
+from pygsp import graphs, plotting, filters
+import pyunlocbox
+
+
 def sum_squareform(n):
 	#sum operator that find degree from upper triangle
 	ncols=int((n-1)*n/2)
@@ -77,14 +82,15 @@ def lin_map(x, lims_out, lims_in):
 	return y
 
 
-def filter_graph_to_knn(adj_matrix,node_num, k=5):
+def filter_graph_to_knn(adj_matrix, node_num, k):
+	a=adj_matrix.copy()
 	for i in range(node_num):
-		rbf_row=adj_matrix[i,:]
+		rbf_row=a[i,:].ravel()
 		neighbors=np.argsort(rbf_row)[:node_num-k]
-		adj_matrix[i, neighbors]=0
-		adj_matrix[neighbors,i]=0
-	np.fill_diagonal(adj_matrix,0)
-	return adj_matrix
+		a[i, neighbors]=0
+		a[neighbors,i]=0
+	np.fill_diagonal(a,0)
+	return a
 
 
 def filter_graph_to_rbf(adj_matrix, node_num, thres=0.5):
@@ -116,7 +122,7 @@ def create_networkx_graph(node_num, adj_matrix):
 				pass
 	return G
 
-def plot_graph_and_signal(adj_matrix, signal, pos, node_num, error_sigma, title='Graph', path='newpath'):
+def plot_graph_and_signal(adj_matrix, signal, pos, node_num, error_sigma, title='Graph', path='newpath', show=True):
 	graph=create_networkx_graph(node_num, adj_matrix)
 	edge_weight=adj_matrix[np.triu_indices(node_num, 1)]
 	edge_color=edge_weight[edge_weight>0]
@@ -128,6 +134,47 @@ def plot_graph_and_signal(adj_matrix, signal, pos, node_num, error_sigma, title=
 		edges=nx.draw_networkx_edges(graph, pos, width=1.0, alpha=1, edge_color=edge_color, edge_cmap=plt.cm.Blues, vmin=0, vmax=1)
 	plt.axis('off')
 	plt.title(title)
-	plt.savefig(path+title+'graph_signal_n_s_e_%s_%s_%s'%(node_num, signal.shape[0], int(error_sigma*100)) +'.png', dpi=200)
-	plt.show()
+	plt.savefig(path+title+'.png', dpi=200)
+	if show==True:
+		plt.show()
+	else:
+		plt.clf()
 
+def generate_graph_from_rbf(adj_matrix):
+	adj_matrix=np.matrix(adj_matrix)
+	G=nx.from_numpy_matrix(adj_matrix)
+	return G
+
+def generate_graph(adj_matrix):
+	G=nx.Graph()
+	G.add_nodes_from(list(range(adj_matrix.shape[0])))
+	for i in range(adj_matrix.shape[0]):
+		for j in range(adj_matrix.shape[1]):
+			if adj_matrix[i,j]==0.0:
+				pass 
+			else:
+				G.add_edge(i,j, weight=adj_matrix[i,j])
+	return G
+
+
+def find_community_best_partition(graph):
+	parts=community_louvain.best_partition(graph)
+	values=[parts.get(node) for node in graph.nodes()]
+	clusters=values
+	n_clusters=len(np.unique(values))
+	return clusters, n_clusters
+
+def total_variation_signal_learning(adj, noisy_signal, gamma=3.0):
+	G=graphs.Graph(adj)
+	gamma=gamma
+	d=pyunlocbox.functions.dummy()
+	r=pyunlocbox.functions.norm_l1()
+	f=pyunlocbox.functions.norm_l2(w=1, y=noisy_signal, lambda_=gamma)
+	G.compute_differential_operator()
+	L=G.D.toarray()
+	step=0.999/(1+np.linalg.norm(L))
+	solver=pyunlocbox.solvers.mlfbf(L=L, step=step)
+	x0=noisy_signal.copy()
+	prob=pyunlocbox.solvers.solve([d,r,f], solver=solver, x0=x0, rtol=0, maxit=1000)
+	sol=prob['sol']
+	return sol 
